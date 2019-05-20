@@ -2,6 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:barcode_scan/barcode_scan.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
+import 'package:dio/dio.dart';
+import 'dart:convert';
+
+Dio dio = new Dio();
+
+void getHttp() async {
+  try {
+    Response response = await dio.get("http://api.devgame.top/scada/test/");
+    print(response);
+    final body = json.decode(response.toString());
+    print(body['data']);
+  } catch (e) {
+    print(e);
+  }
+}
+
 
 void main() {
   runApp(new MaterialApp(
@@ -20,7 +36,7 @@ class FirstScreen extends StatelessWidget {
         body: new ListView(
           children: <Widget>[
             new RaisedButton(
-              child: new Text('Launch screen'),
+              child: new Text('检查列表'),
               onPressed: () {
                 Navigator.push(
                   context,
@@ -30,18 +46,20 @@ class FirstScreen extends StatelessWidget {
               },
             ),
             new RaisedButton(
-              child: new Text('Launch screen'),
+              child: new Text('扫码界面'),
               onPressed: () {
                 Navigator.push(
                   context,
-                  new MaterialPageRoute(
-                      builder: (context) => new ScanQr()),
+                  new MaterialPageRoute(builder: (context) => new ScanQr()),
                 );
               },
             ),
+            new RaisedButton(
+                child: new Text('获取数据'), onPressed: getHttp),
           ],
         ));
   }
+
 }
 
 class Record {
@@ -101,18 +119,20 @@ class SecondScreen extends StatefulWidget {
 }
 
 class SecondScreenState extends State<SecondScreen> {
+  String barcode = "";
+
   @override
   Widget build(BuildContext context) {
     return new Scaffold(
       appBar: new AppBar(
         leading: new IconButton(
-          icon: new Icon(Icons.menu),
+          icon: new Icon(Icons.arrow_back),
           tooltip: 'Navigation menu',
           onPressed: () {
             Navigator.pop(context);
           },
         ),
-        title: new Text("Second Screen"),
+        title: new Text(barcode),
         actions: <Widget>[
           new IconButton(
             icon: new Icon(Icons.search),
@@ -131,9 +151,33 @@ class SecondScreenState extends State<SecondScreen> {
       floatingActionButton: new FloatingActionButton(
         tooltip: 'Add', // used by assistive technologies
         child: new Icon(Icons.camera),
-        onPressed: null,
+        onPressed: scan,
       ),
     );
+  }
+
+  Future scan() async {
+    try {
+      String barcode = await BarcodeScanner.scan();
+      setState(() {
+        return this.barcode = barcode;
+      });
+    } on PlatformException catch (e) {
+      if (e.code == BarcodeScanner.CameraAccessDenied) {
+        setState(() {
+          return this.barcode = 'The user did not grant the camera permission!';
+        });
+      } else {
+        setState(() {
+          return this.barcode = 'Unknown error: $e';
+        });
+      }
+    } on FormatException {
+      setState(() => this.barcode =
+          'null (User returned using the "back"-button before scanning anything. Result)');
+    } catch (e) {
+      setState(() => this.barcode = 'Unknown error: $e');
+    }
   }
 }
 
