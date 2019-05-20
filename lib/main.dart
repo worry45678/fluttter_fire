@@ -96,7 +96,7 @@ class ShoppingListItem extends StatelessWidget {
 
     return new TextStyle(
       color: Colors.black54,
-      //decoration: TextDecoration.lineThrough,
+      decoration: TextDecoration.lineThrough,
     );
   }
 
@@ -127,7 +127,6 @@ class CheckListState extends State<CheckList> {
     try {
       Response response = await dio.get("http://39.104.64.142:9999/log");
       final body = json.decode(response.toString());
-      print(body);
       final records3 = body['data'].map((rec) {
         return new Record(
             date: DateTime.parse(rec['date']),
@@ -148,6 +147,7 @@ class CheckListState extends State<CheckList> {
           await dio.post("http://39.104.64.142:9999/check", data: {"id": id});
       final body = json.decode(response.toString());
       print(body);
+      getCheckList();
     } catch (e) {
       print(e);
     }
@@ -171,7 +171,7 @@ class CheckListState extends State<CheckList> {
             Navigator.pop(context);
           },
         ),
-        title: new Text(barcode),
+        title: new Text('今日点检记录'),
         actions: <Widget>[
           new IconButton(
             icon: new Icon(Icons.refresh),
@@ -198,7 +198,7 @@ class CheckListState extends State<CheckList> {
   Future scan() async {
     try {
       String barcode = await BarcodeScanner.scan();
-      postCheck(1);
+      postCheck(int.parse(barcode));
       setState(() {
         return this.barcode = barcode;
       });
