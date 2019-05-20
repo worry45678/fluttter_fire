@@ -12,12 +12,14 @@ void getHttp() async {
     Response response = await dio.get("http://api.devgame.top/scada/test/");
     print(response);
     final body = json.decode(response.toString());
-    print(body['data']);
+    final records3 = body['data'].map((rec) {
+      return new Record(date: null, name: rec['name'], isCheck: rec['isCheck']);
+    }).toList();
+    print(records3);
   } catch (e) {
     print(e);
   }
 }
-
 
 void main() {
   runApp(new MaterialApp(
@@ -40,8 +42,7 @@ class FirstScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  new MaterialPageRoute(
-                      builder: (context) => new SecondScreen()),
+                  new MaterialPageRoute(builder: (context) => new CheckList()),
                 );
               },
             ),
@@ -54,12 +55,10 @@ class FirstScreen extends StatelessWidget {
                 );
               },
             ),
-            new RaisedButton(
-                child: new Text('获取数据'), onPressed: getHttp),
+            new RaisedButton(child: new Text('获取数据'), onPressed: getHttp),
           ],
         ));
   }
-
 }
 
 class Record {
@@ -69,7 +68,7 @@ class Record {
   final bool isCheck;
 }
 
-final records = <Record>[
+final records2 = <Record>[
   new Record(name: '灭火器1', date: null, isCheck: true),
   new Record(name: '灭火器2', date: null, isCheck: true),
   new Record(name: '灭火器3', date: null, isCheck: true),
@@ -97,7 +96,7 @@ class ShoppingListItem extends StatelessWidget {
 
     return new TextStyle(
       color: Colors.black54,
-      decoration: TextDecoration.lineThrough,
+      //decoration: TextDecoration.lineThrough,
     );
   }
 
@@ -109,17 +108,57 @@ class ShoppingListItem extends StatelessWidget {
         child: new Text(record.name[0]),
       ),
       title: new Text(record.name, style: _getTextStyle(context)),
+      trailing: new Text('${record.date.hour}:${record.date.minute}',
+          style: _getTextStyle(context)),
     );
   }
 }
 
-class SecondScreen extends StatefulWidget {
+class CheckList extends StatefulWidget {
   @override
-  createState() => new SecondScreenState();
+  createState() => new CheckListState();
 }
 
-class SecondScreenState extends State<SecondScreen> {
+class CheckListState extends State<CheckList> {
   String barcode = "";
+  var records = [];
+
+  Future getCheckList() async {
+    try {
+      Response response = await dio.get("http://39.104.64.142:9999/log");
+      final body = json.decode(response.toString());
+      print(body);
+      final records3 = body['data'].map((rec) {
+        return new Record(
+            date: DateTime.parse(rec['date']),
+            name: rec['name'],
+            isCheck: rec['isCheck']);
+      }).toList();
+      setState(() {
+        this.records = records3;
+      });
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  Future postCheck(int id) async {
+    try {
+      Response response =
+          await dio.post("http://39.104.64.142:9999/check", data: {"id": id});
+      final body = json.decode(response.toString());
+      print(body);
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  // 实例化时运行的方法
+  @override
+  void initState() {
+    super.initState();
+    getCheckList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,14 +174,14 @@ class SecondScreenState extends State<SecondScreen> {
         title: new Text(barcode),
         actions: <Widget>[
           new IconButton(
-            icon: new Icon(Icons.search),
+            icon: new Icon(Icons.refresh),
             tooltip: 'Search',
-            onPressed: null,
+            onPressed: getCheckList,
           ),
         ],
       ),
       body: new ListView(
-        children: records.map((Record record) {
+        children: records.map((record) {
           return new ShoppingListItem(
             record: record,
           );
@@ -159,6 +198,7 @@ class SecondScreenState extends State<SecondScreen> {
   Future scan() async {
     try {
       String barcode = await BarcodeScanner.scan();
+      postCheck(1);
       setState(() {
         return this.barcode = barcode;
       });
