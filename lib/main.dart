@@ -9,14 +9,20 @@ Dio dio = new Dio();
 
 void getHttp() async {
   try {
-    Response response = await dio.get("http://api.devgame.top/scada/test/");
-    print(response);
-    final body = json.decode(response.toString());
-    final records3 = body['data'].map((rec) {
-      return new Record(
-          date: rec['date'], name: rec['name'], isCheck: rec['isCheck']);
-    }).toList();
-    print(records3);
+    String username = 'admin';
+    String password = '123456';
+    String basicAuth =
+        'Basic ' + base64Encode(utf8.encode('$username:$password'));
+    print(basicAuth);
+
+    dio
+        .post("http://39.104.64.142:9999/auth/login/",
+            options: new Options(
+              headers: {"Authorization": basicAuth},
+            ))
+        .then((response) {
+      print(response.data);
+    });
   } catch (e) {
     print(e);
   }
@@ -25,13 +31,41 @@ void getHttp() async {
 void main() {
   runApp(new MaterialApp(
     title: 'Navigation Basics',
-    home: new FirstScreen(),
+    home: new MyHomePage(),
   ));
 }
 
 class FirstScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    void getLogin() async {
+      try {
+        String username = 'admin';
+        String password = '123456';
+        String basicAuth =
+            'Basic ' + base64Encode(utf8.encode('$username:$password'));
+        print(basicAuth);
+
+        dio
+            .post("http://39.104.64.142:9999/auth/login/",
+                options: new Options(
+                  headers: {"Authorization": basicAuth},
+                ))
+            .then((response) {
+          print(response.data['code']);
+          if (response.data['code'] == 20000) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              new MaterialPageRoute(builder: (context) => new CheckList()),
+              (route) => route == null,
+            );
+          }
+        });
+      } catch (e) {
+        print(e);
+      }
+    }
+
     return new Scaffold(
         appBar: new AppBar(
           title: new Text('灭火器、消火栓点检系统'),
@@ -47,16 +81,19 @@ class FirstScreen extends StatelessWidget {
                 );
               },
             ),
+            new RaisedButton(child: new Text('测试登录'), onPressed: getLogin),
+            new RaisedButton(
+              child: new Text('登录界面'),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  new MaterialPageRoute(builder: (context) => new MyHomePage()),
+                );
+              },
+            ),
           ],
         ));
   }
-}
-
-class Record {
-  const Record({this.name, this.date, this.isCheck});
-  final String name;
-  final String date;
-  final bool isCheck;
 }
 
 class MyHomePage extends StatefulWidget {
@@ -69,40 +106,49 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  bool _phoneState, _pwdState = false;
-  String _checkStr;
   TextEditingController _phonecontroller = new TextEditingController();
   TextEditingController _pwdcontroller = new TextEditingController();
-
-  void _checkPhone() {
-    if (_phonecontroller.text.isNotEmpty &&
-        _phonecontroller.text.trim().length == 11) {
-      _phoneState = true;
-    } else {
-      _phoneState = false;
-    }
-  }
-
-  void _checkPwd() {
-    if (_pwdcontroller.text.isNotEmpty &&
-        _pwdcontroller.text.trim().length >= 6 &&
-        _pwdcontroller.text.trim().length <= 10) {
-      _pwdState = true;
-    } else {
-      _pwdState = false;
-    }
-  }
+  String _error = '';
 
   @override
   Widget build(BuildContext context) {
+    void getLogin() async {
+      try {
+        String basicAuth = 'Basic ' +
+            base64Encode(
+                utf8.encode('${_phonecontroller.text}:${_pwdcontroller.text}'));
+        dio
+            .post("http://39.104.64.142:9999/auth/login/",
+                options: new Options(
+                  headers: {"Authorization": basicAuth},
+                ))
+            .then((response) {
+          print(response.data);
+          if (response.data['code'] == 20000) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              new MaterialPageRoute(builder: (context) => new CheckList()),
+              (route) => route == null,
+            );
+          }
+        });
+      } on DioError catch (e) {
+        print('*********************${e.message}');
+        setState(() {
+          _error = e.message;
+        });
+      }
+    }
+
     return new MaterialApp(
       title: '轻签到',
       home: new Scaffold(
         appBar: new AppBar(
-          title: new Text('极速登录'),
+          title: new Text('灭火器、消火栓点检系统登录'),
         ),
         body: new ListView(
           children: <Widget>[
+            new Text(_error),
             new Column(
               mainAxisSize: MainAxisSize.max,
               mainAxisAlignment: MainAxisAlignment.start,
@@ -135,7 +181,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             new Expanded(
                               child: new TextField(
                                 controller: _phonecontroller,
-                                keyboardType: TextInputType.phone,
+                                keyboardType: TextInputType.text,
                                 decoration: new InputDecoration(
                                   hintText: '请输入用户名',
                                 ),
@@ -189,50 +235,15 @@ class _MyHomePageState extends State<MyHomePage> {
                     color: Colors.blue,
                     elevation: 16.0,
                     child: new FlatButton(
-                      child: new Padding(
-                        padding: new EdgeInsets.all(10.0),
-                        child: new Text(
-                          '极速登录',
-                          style: new TextStyle(
-                              color: Colors.white, fontSize: 16.0),
-                        ),
-                      ),
-                      onPressed: () {
-                        _checkPhone();
-                        _checkPwd();
-                        if (_phoneState && _pwdState) {
-                          _checkStr = '页面跳转下期见咯！';
-                        } else {
-                          if (!_phoneState) {
-                            _checkStr = '请输入11位手机号！';
-                          } else if (!_pwdState) {
-                            _checkStr = '请输入6-10位密码！';
-                          }
-                        }
-                        print(_checkStr);
-                        showDialog<Null>(
-                          context: context,
-                          barrierDismissible: false,
-                          child: new AlertDialog(
-                            title: new Text(
-                              '温馨提示',
-                              style: new TextStyle(
-                                color: Colors.black54,
-                                fontSize: 18.0,
-                              ),
-                            ),
-                            content: new Text(_checkStr),
-                            actions: <Widget>[
-                              new FlatButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                  },
-                                  child: new Text('确定')),
-                            ],
+                        child: new Padding(
+                          padding: new EdgeInsets.all(10.0),
+                          child: new Text(
+                            '登录',
+                            style: new TextStyle(
+                                color: Colors.white, fontSize: 16.0),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                        onPressed: getLogin),
                   ),
                 ),
               ],
@@ -242,6 +253,13 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     );
   }
+}
+
+class Record {
+  const Record({this.name, this.date, this.isCheck});
+  final String name;
+  final String date;
+  final bool isCheck;
 }
 
 class ShoppingListItem extends StatelessWidget {
@@ -329,14 +347,8 @@ class CheckListState extends State<CheckList> {
   Widget build(BuildContext context) {
     return new Scaffold(
       appBar: new AppBar(
-        leading: new IconButton(
-          icon: new Icon(Icons.arrow_back),
-          tooltip: 'Navigation menu',
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-        title: new Text('今日点检记录'),
+        //leading: new IconButton(icon: new Icon(Icons.arrow_back),tooltip: 'Navigation menu', onPressed: () {Navigator.pop(context);},),
+        title: new Text('当日检查情况'),
         actions: <Widget>[
           new IconButton(
             icon: new Icon(Icons.refresh),
