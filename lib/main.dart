@@ -7,6 +7,10 @@ import 'dart:convert';
 
 Dio dio = new Dio();
 
+// const baseUrl = "http://39.104.64.142:9999/";
+const baseUrl = "http://192.168.21.183:9999/";
+
+// 可删除部分
 void getHttp() async {
   try {
     String username = 'admin';
@@ -16,7 +20,7 @@ void getHttp() async {
     print(basicAuth);
 
     dio
-        .post("http://39.104.64.142:9999/auth/login/",
+        .post(baseUrl + "login",
             options: new Options(
               headers: {"Authorization": basicAuth},
             ))
@@ -35,6 +39,7 @@ void main() {
   ));
 }
 
+// 测试用界面
 class FirstScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -47,12 +52,11 @@ class FirstScreen extends StatelessWidget {
         print(basicAuth);
 
         dio
-            .post("http://39.104.64.142:9999/auth/login/",
+            .post(baseUrl + "login",
                 options: new Options(
                   headers: {"Authorization": basicAuth},
                 ))
             .then((response) {
-          print(response.data['code']);
           if (response.data['code'] == 20000) {
             Navigator.pushAndRemoveUntil(
               context,
@@ -118,13 +122,31 @@ class _MyHomePageState extends State<MyHomePage> {
             base64Encode(
                 utf8.encode('${_phonecontroller.text}:${_pwdcontroller.text}'));
         dio
-            .post("http://39.104.64.142:9999/auth/login/",
+            .post(baseUrl + "login",
                 options: new Options(
                   headers: {"Authorization": basicAuth},
                 ))
             .then((response) {
-          print(response.data);
+          // print(response.data);
           if (response.data['code'] == 20000) {
+            dio.interceptors
+                .add(InterceptorsWrapper(onRequest: (RequestOptions options) {
+              options.headers["Authorization"] =
+                  "Bearer " + response.data['token'];
+              // 在请求被发送之前做一些事情
+              return options; //continue
+              // 如果你想完成请求并返回一些自定义数据，可以返回一个`Response`对象或返回`dio.resolve(data)`。
+              // 这样请求将会被终止，上层then会被调用，then中返回的数据将是你的自定义数据data.
+              //
+              // 如果你想终止请求并触发一个错误,你可以返回一个`DioError`对象，或返回`dio.reject(errMsg)`，
+              // 这样请求将被中止并触发异常，上层catchError会被调用。
+            }, onResponse: (Response response) {
+              // 在返回响应数据之前做一些预处理
+              return response; // continue
+            }, onError: (DioError e) {
+              // 当请求失败时做一些预处理
+              return e; //continue
+            }));
             Navigator.pushAndRemoveUntil(
               context,
               new MaterialPageRoute(builder: (context) => new CheckList()),
@@ -141,10 +163,23 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     return new MaterialApp(
-      title: '轻签到',
+      title: '点检系统',
       home: new Scaffold(
         appBar: new AppBar(
           title: new Text('灭火器、消火栓点检系统登录'),
+          actions: <Widget>[
+            new IconButton(
+              icon: new Icon(Icons.refresh),
+              tooltip: 'Search',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  new MaterialPageRoute(
+                      builder: (context) => new FirstScreen()),
+                );
+              },
+            ),
+          ],
         ),
         body: new ListView(
           children: <Widget>[
@@ -310,11 +345,13 @@ class CheckListState extends State<CheckList> {
 
   Future getCheckList() async {
     try {
-      Response response = await dio.get("http://39.104.64.142:9999/log");
+      Response response = await dio.get(baseUrl + "log");
       final body = json.decode(response.toString());
       final records3 = body['data'].map((rec) {
         return new Record(
-            date: rec['date'], name: rec['name'], isCheck: rec['isCheck']);
+            date: rec['check_date'],
+            name: rec['name'],
+            isCheck: rec['isCheck']);
       }).toList();
       setState(() {
         this.records = records3;
@@ -324,10 +361,10 @@ class CheckListState extends State<CheckList> {
     }
   }
 
-  Future postCheck(int id) async {
+  Future postCheck(String code) async {
     try {
       Response response =
-          await dio.post("http://39.104.64.142:9999/check", data: {"id": id});
+          await dio.post(baseUrl + "check", data: {"code": code});
       final body = json.decode(response.toString());
       print(body);
       getCheckList();
@@ -375,10 +412,18 @@ class CheckListState extends State<CheckList> {
   Future scan() async {
     try {
       String barcode = await BarcodeScanner.scan();
-      postCheck(int.parse(barcode));
-      setState(() {
+      /*setState(() {
         return this.barcode = barcode;
-      });
+      });*/
+      if (barcode.length == 6) {
+        Navigator.push(
+          context,
+          new MaterialPageRoute(
+              builder: (context) => new CheckForm(code: barcode)),
+        );
+      } else {
+        print('无效code');
+      }
     } on PlatformException catch (e) {
       if (e.code == BarcodeScanner.CameraAccessDenied) {
         setState(() {
@@ -398,88 +443,113 @@ class CheckListState extends State<CheckList> {
   }
 }
 
-class ScanQr extends StatelessWidget {
+class CheckForm extends StatefulWidget {
+  CheckForm({Key key, this.code}) : super(key: key);
+  final String code;
+
+  @override
+  createState() => new CheckFormState();
+}
+
+class CheckFormState extends State<CheckForm> {
+  GlobalKey<FormState> _formKey = new GlobalKey<FormState>();
+
+  int _result = 1;
+
+  String _content;
+
+  String _labelText;
+
+  void _forLabelText() {
+    Map list = {1: '正常', 2: '过期', 3: '损坏'};
+    setState(() {
+      _labelText = list[_result];
+    });
+  }
+
+  void _forSubmitted() {
+    var _form = _formKey.currentState;
+
+    if (_form.validate()) {
+      _form.save();
+      print(_result);
+      print(_content);
+      print(_labelText);
+      Map params = {
+        'result': _result,
+        'content': _content,
+        'code': widget.code
+      };
+      postCheck(params);
+    }
+  }
+
+  Future postCheck(Map params) async {
+    try {
+      Response response =
+          await dio.post(baseUrl + "check", data: params).then((response) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          new MaterialPageRoute(builder: (context) => new CheckList()),
+          (route) => route == null,
+        );
+        print(response.data);
+      });
+      final body = json.decode(response.toString());
+      print(body);
+    } catch (e) {
+      print(e);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // TODO: implement build
-    return MaterialApp(
-      home: SacnBody(),
-    );
-  }
-}
-
-class SacnBody extends StatefulWidget {
-  @override
-  State<StatefulWidget> createState() {
-    // TODO: implement createState
-    return new _MyScanState();
-  }
-}
-
-class _MyScanState extends State<SacnBody> {
-  String barcode = "";
-
-  @override
-  void initState() {
-    // TODO: implement initState
-    super.initState();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // TODO: implement build
-    return Scaffold(
-      appBar: new AppBar(
-        title: new Text('QR Code'),
-      ),
-      body: new Center(
-        child: new Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
-              child: RaisedButton(
-                  color: Colors.orange,
-                  textColor: Colors.white,
-                  splashColor: Colors.blueGrey,
-                  onPressed: scan,
-                  child: const Text('START CAMERA SCAN')),
+    return new MaterialApp(
+      title: '检查情况填报',
+      home: new Scaffold(
+        appBar: new AppBar(
+          title: new Text('检查情况'),
+        ),
+        floatingActionButton: new FloatingActionButton(
+          onPressed: _forSubmitted,
+          child: new Text('提交'),
+        ),
+        body: new Container(
+          padding: const EdgeInsets.all(16.0),
+          child: new Form(
+            key: _formKey,
+            child: new Column(
+              children: <Widget>[
+                new DropdownButtonFormField(
+                    decoration: new InputDecoration(
+                        prefixText: 'prefix', labelText: _labelText),
+                    onChanged: (val) {
+                      _result = val;
+                      _forLabelText();
+                    },
+                    items: [
+                      new DropdownMenuItem(child: new Text('正常'), value: 1),
+                      new DropdownMenuItem(child: new Text('过期'), value: 2),
+                      new DropdownMenuItem(child: new Text('损坏'), value: 3)
+                    ]),
+                new TextFormField(
+                  decoration: new InputDecoration(
+                    labelText: '情况描述',
+                  ),
+                  obscureText: false,
+                  validator: (val) {
+                    return val.length < 0 ? "字数太少" : null;
+                  },
+                  onSaved: (val) {
+                    _content = val;
+                  },
+                ),
+              ],
             ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Text(
-                barcode,
-                textAlign: TextAlign.center,
-              ),
-            )
-          ],
+          ),
         ),
       ),
     );
-  }
-
-  Future scan() async {
-    try {
-      String barcode = await BarcodeScanner.scan();
-      setState(() {
-        return this.barcode = barcode;
-      });
-    } on PlatformException catch (e) {
-      if (e.code == BarcodeScanner.CameraAccessDenied) {
-        setState(() {
-          return this.barcode = 'The user did not grant the camera permission!';
-        });
-      } else {
-        setState(() {
-          return this.barcode = 'Unknown error: $e';
-        });
-      }
-    } on FormatException {
-      setState(() => this.barcode =
-          'null (User returned using the "back"-button before scanning anything. Result)');
-    } catch (e) {
-      setState(() => this.barcode = 'Unknown error: $e');
-    }
   }
 }
