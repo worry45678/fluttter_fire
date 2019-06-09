@@ -7,8 +7,8 @@ import 'dart:convert';
 
 Dio dio = new Dio();
 
-// const baseUrl = "http://39.104.64.142:9999/";
-const baseUrl = "http://192.168.21.183:9999/";
+const baseUrl = "http://39.104.64.142:9999/";
+// const baseUrl = "http://192.168.21.183:9999/";
 
 // 可删除部分
 void getHttp() async {
@@ -291,9 +291,10 @@ class _MyHomePageState extends State<MyHomePage> {
 }
 
 class Record {
-  const Record({this.name, this.date, this.isCheck});
+  const Record({this.name, this.date, this.isCheck, this.result});
   final String name;
   final String date;
+  final String result;
   final bool isCheck;
 }
 
@@ -329,7 +330,8 @@ class ShoppingListItem extends StatelessWidget {
         child: new Text(record.name[0]),
       ),
       title: new Text(record.name, style: _getTextStyle(context)),
-      trailing: new Text(record.date, style: _getTextStyle(context)),
+      subtitle: new Text(record.date),
+      trailing: new Text(record.result),
     );
   }
 }
@@ -351,7 +353,8 @@ class CheckListState extends State<CheckList> {
         return new Record(
             date: rec['check_date'],
             name: rec['name'],
-            isCheck: rec['isCheck']);
+            isCheck: rec['isCheck'],
+            result: rec['result']);
       }).toList();
       setState(() {
         this.records = records3;
@@ -454,11 +457,11 @@ class CheckForm extends StatefulWidget {
 class CheckFormState extends State<CheckForm> {
   GlobalKey<FormState> _formKey = new GlobalKey<FormState>();
 
-  int _result = 1;
+  int _result;
 
   String _content;
 
-  String _labelText;
+  String _labelText = '检查结果';
 
   void _forLabelText() {
     Map list = {1: '正常', 2: '过期', 3: '损坏'};
@@ -521,6 +524,10 @@ class CheckFormState extends State<CheckForm> {
             key: _formKey,
             child: new Column(
               children: <Widget>[
+                new ListTile(
+                  title: new Text('设备代码'),
+                  trailing: new Text(widget.code),
+                ),
                 new DropdownButtonFormField(
                     decoration: new InputDecoration(
                         prefixText: 'prefix', labelText: _labelText),
